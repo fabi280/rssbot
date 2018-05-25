@@ -1,6 +1,7 @@
 use futures::{self, Future, Stream};
 use telebot;
 use telebot::functions::*;
+use url::form_urlencoded;
 
 use errors;
 
@@ -71,16 +72,24 @@ impl<'a> ::std::fmt::Display for EscapeUrl<'a> {
     }
 }
 
+pub fn construct_iv_url(link: &str, rhash: u64) -> String {
+    form_urlencoded::Serializer::new("https://t.me/iv?".to_owned())
+        .append_pair("url", link)
+        .append_pair("rhash", &format!("{:x}", rhash))
+        .finish()
+}
+
 pub fn send_multiple_messages<'a>(
     bot: &telebot::RcBot,
     target: i64,
     messages: Vec<String>,
+    link_preview: bool,
 ) -> impl Future<Item = (), Error = telebot::Error> + 'a {
     let bot = bot.clone();
     futures::stream::iter_ok(messages).for_each(move |msg| {
         bot.message(target, msg)
             .parse_mode("HTML")
-            .disable_web_page_preview(true)
+            .disable_web_page_preview(!link_preview)
             .send()
             .map(|_| ())
     })
@@ -109,6 +118,15 @@ where
             msg.push_str(&line);
         }
     }
+    msgs
+}
+
+pub fn format_msgs<T, F>(data: &[T], format_fn: F) -> Vec<String>
+where
+    F: Fn(&T) -> String,
+{
+    let mut msgs = Vec::with_capacity(data.len());
+    data.iter().for_each(|item| msgs.push(format_fn(item)));
     msgs
 }
 
@@ -152,3 +170,34 @@ pub fn gen_ua(bot: &telebot::RcBot) -> String {
         bot.inner.username
     )
 }
+
+/*pub struct CachedFunction<T, U>
+where
+    T: Eq + Hash,
+{
+    function: fn(T) -> U,
+    cache: HashMap<T, U>,
+}
+
+impl<T, U> CachedFunction<T, U>
+where
+    T: Eq + Hash,
+{
+    pub fn new(function: fn(T) -> U) -> Self {
+        CachedFunction {
+            function: function,
+            cache: HashMap::new(),
+        }
+    }
+
+    fn get(&mut self, arg: T) -> &U {
+        match self.cache.get(&arg) {
+            Some(value) => value,
+            None => {
+                let result = (self.function)(arg);
+                self.cache.insert(arg, result);
+                &result
+            }
+        }
+    }
+}*/

@@ -10,9 +10,13 @@ use tokio_core::reactor::{Interval, Timeout};
 use tokio_curl::Session;
 
 use data;
+use data::LinkPreview;
 use feed;
-use utlis::{chat_is_unavailable, format_and_split_msgs, gen_ua, send_multiple_messages,
-            to_chinese_error_msg, truncate_message, Escape, EscapeUrl, TELEGRAM_MAX_MSG_LEN};
+use utlis::{
+    chat_is_unavailable, construct_iv_url, format_and_split_msgs, format_msgs, gen_ua,
+    send_multiple_messages, to_chinese_error_msg, truncate_message, Escape, EscapeUrl,
+    TELEGRAM_MAX_MSG_LEN,
+};
 
 lazy_static!{
     // it's different from `feed::HOST`, so maybe need a better name?
@@ -94,7 +98,7 @@ fn fetch_feed_updates(
                 db.reset_error_count(&feed.link);
                 let err_msg = to_chinese_error_msg(e);
                 let msg = format!(
-                    "《<a href=\"{}\">{}</a>》\
+                    "「<a href=\"{}\">{}</a>」\
                      已经连续 5 天拉取出错 ({}),\
                      可能已经关闭, 请取消订阅",
                     EscapeUrl(&feed.link),
@@ -102,7 +106,8 @@ fn fetch_feed_updates(
                     Escape(&err_msg)
                 );
                 for subscriber in feed.subscribers {
-                    let m = bot.message(subscriber, msg.clone())
+                    let m = bot
+                        .message(subscriber, msg.clone())
                         .parse_mode("HTML")
                         .disable_web_page_preview(true)
                         .send();
@@ -148,34 +153,117 @@ fn fetch_feed_updates(
         link: rss_link,
         items: rss_items,
         ..
-    } = rss;
+    } = rss.clone();
     let updates = db.update(&feed.link, rss_items);
     if updates.is_empty() {
         return Ok(());
     }
+    let feed_id = feed.get_id();
 
-    let msgs = format_and_split_msgs(
-        format!("<b>{}</b>", Escape(&rss_title)),
-        &updates,
-        move |item| {
-            let title = item.title
-                .as_ref()
-                .map(|s| s.as_str())
-                .unwrap_or_else(|| &rss_title);
-            let link = item.link
-                .as_ref()
-                .map(|s| s.as_str())
-                .unwrap_or_else(|| &rss_link);
-            format!(
-                "<a href=\"{}\">{}</a>",
-                EscapeUrl(link),
-                Escape(&truncate_message(title, TELEGRAM_MAX_MSG_LEN - 500))
-            )
-        },
-    );
+    let mut msgs_cache: HashMap<LinkPreview, Vec<String>> = HashMap::new();
 
     for subscriber in feed.subscribers {
-        let r = send_multiple_messages(&bot, subscriber, msgs.clone());
+        use data::LinkPreview::*;
+        let link_preview = db.get_link_preview(subscriber, feed_id);
+        let (msgs, enable_lp) = match link_preview {
+            None => (
+                {
+                    let _ = db.subscribe(subscriber, &rss_link, &rss, Off);
+                    vec!(format!(
+                        "<b>错误</b>：Link Preview 设置异常（{}），已被停用",
+                        Escape(&rss_title)
+                    ))
+                },
+                false,
+            ),
+            Some(link_preview) => match link_preview {
+                Off => (
+                    msgs_cache
+                        .entry(Off)
+                        .or_insert_with(|| {
+                            format_and_split_msgs(
+                                format!("<b>{}</b>", Escape(&rss_title)),
+                                &updates,
+                                |item| {
+                                    let title = item
+                                        .title
+                                        .as_ref()
+                                        .map(|s| s.as_str())
+                                        .unwrap_or_else(|| &rss_title);
+                                    let link = item
+                                        .link
+                                        .as_ref()
+                                        .map(|s| s.as_str())
+                                        .unwrap_or_else(|| &rss_link);
+                                    format!(
+                                        "<a href=\"{}\">{}</a>",
+                                        EscapeUrl(link),
+                                        Escape(&truncate_message(
+                                            title,
+                                            TELEGRAM_MAX_MSG_LEN - 500
+                                        ))
+                                    )
+                                },
+                            )
+                        })
+                        .clone(),
+                    false,
+                ),
+                On => (
+                    msgs_cache
+                        .entry(On)
+                        .or_insert_with(|| {
+                            format_msgs(&updates, |item| {
+                                let title = item
+                                    .title
+                                    .as_ref()
+                                    .map(|s| s.as_str())
+                                    .unwrap_or_else(|| &rss_title);
+                                let link = item
+                                    .link
+                                    .as_ref()
+                                    .map(|s| s.as_str())
+                                    .unwrap_or_else(|| &rss_link);
+                                format!(
+                                    "<b>{}</b> <a href=\"{}\">{}</a>",
+                                    Escape(&rss_title),
+                                    EscapeUrl(link),
+                                    Escape(&truncate_message(title, TELEGRAM_MAX_MSG_LEN - 500))
+                                )
+                            })
+                        })
+                        .clone(),
+                    true,
+                ),
+                InstantView(rhash) => (
+                    msgs_cache
+                        .entry(InstantView(rhash))
+                        .or_insert_with(|| {
+                            format_msgs(&updates, |item| {
+                                let title = item
+                                    .title
+                                    .as_ref()
+                                    .map(|s| s.as_str())
+                                    .unwrap_or_else(|| &rss_title);
+                                let link = item
+                                    .link
+                                    .as_ref()
+                                    .map(|s| s.as_str())
+                                    .unwrap_or_else(|| &rss_link);
+                                format!(
+                                    "<a href=\"{}\">🔗</a><a href=\"{}\">{}</a>",
+                                    EscapeUrl(&construct_iv_url(link, rhash)),
+                                    EscapeUrl(link),
+                                    Escape(&truncate_message(title, TELEGRAM_MAX_MSG_LEN - 500))
+                                )
+                            })
+                        })
+                        .clone(),
+                    true,
+                ),
+            },
+        };
+        let r = send_multiple_messages(&bot, subscriber, msgs.clone(), enable_lp);
         match await!(r) {
             Err(telebot::Error::Telegram(_, ref s, None)) if chat_is_unavailable(s) => {
                 db.delete_subscriber(subscriber);
@@ -189,7 +277,9 @@ fn fetch_feed_updates(
                 }),
             )) => {
                 db.update_subscriber(subscriber, new_id);
-                handle.spawn(send_multiple_messages(&bot, new_id, msgs.clone()).then(|_| Ok(())));
+                handle.spawn(
+                    send_multiple_messages(&bot, new_id, msgs.clone(), enable_lp).then(|_| Ok(())),
+                );
             }
             Err(e) => warn!("failed to send updates to {}, {:?}", subscriber, e),
             _ => (),
@@ -197,7 +287,7 @@ fn fetch_feed_updates(
         if let Some(ref rss) = moved {
             // ignore error
             let _ = db.unsubscribe(subscriber, &feed.link);
-            let _ = db.subscribe(subscriber, rss.source.as_ref().unwrap(), rss);
+            let _ = db.subscribe(subscriber, rss.source.as_ref().unwrap(), rss, link_preview.unwrap_or(Off));
         }
     }
     Ok(())
