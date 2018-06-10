@@ -11,10 +11,8 @@ use data::{Database, LinkPreview, SubscriptionResult};
 use errors::*;
 use feed;
 use opml::to_opml;
-use utlis::{
-    format_and_split_msgs, gen_ua, log_error, send_multiple_messages, to_chinese_error_msg, Escape,
-    EscapeUrl,
-};
+use utlis::{format_and_split_msgs, gen_ua, log_error, send_multiple_messages,
+            to_chinese_error_msg, Escape, EscapeUrl};
 
 pub fn register_commands(bot: &telebot::RcBot, db: &Database, lphandle: Handle) {
     register_rss(bot, db.clone());
@@ -138,17 +136,30 @@ fn register_sub(bot: &telebot::RcBot, db: Database, lphandle: Handle) {
                     feed_link = args[0];
                     subscriber = future::Either::A(future::ok(Some(msg.chat.id)));
                 }
-                2 | 3 => {
+                2 => {
+                    if args[1].to_ascii_lowercase() == "on" {
+                        // Not channel and LP on.
+                        link_preview = LinkPreview::On;
+                        feed_link = args[0];
+                        subscriber = future::Either::A(future::ok(Some(msg.chat.id)));
+                    }
+                    else {
+                        let channel = args[0];
+                        let channel_id =
+                            check_channel(&bot, channel, msg.chat.id, msg.from.unwrap().id);
+                        subscriber = future::Either::B(channel_id);
+                        feed_link = args[1];
+                    }
+                }
+                3 => {
                     let channel = args[0];
                     let channel_id =
                         check_channel(&bot, channel, msg.chat.id, msg.from.unwrap().id);
                     subscriber = future::Either::B(channel_id);
                     feed_link = args[1];
-                    if args.len() == 3 {
-                        link_preview = LinkPreview::from_iv_rhash(
-                            u64::from_str_radix(args[2], 16).unwrap_or(u64::max_value()),
-                        );
-                    }
+                    link_preview = LinkPreview::from_iv_rhash(
+                        u64::from_str_radix(args[2], 16).unwrap_or(u64::max_value()),
+                    );
                 }
                 _ => {
                     let r = bot.message(
@@ -344,16 +355,18 @@ fn register_unsub(bot: &telebot::RcBot, db: Database) {
         })
         .and_then(|(bot, db, subscriber, feed_link, chat_id)| {
             match db.unsubscribe(subscriber, &feed_link) {
-                Ok(feed) => bot.message(
-                    chat_id,
-                    format!(
-                        "「<a href=\"{}\">{}</a>」退订成功",
-                        EscapeUrl(&feed.link),
-                        Escape(&feed.title)
-                    ),
-                ).parse_mode("HTML")
-                    .disable_web_page_preview(true)
-                    .send(),
+                Ok(feed) => {
+                    bot.message(
+                        chat_id,
+                        format!(
+                            "「<a href=\"{}\">{}</a>」退订成功",
+                            EscapeUrl(&feed.link),
+                            Escape(&feed.title)
+                        ),
+                    ).parse_mode("HTML")
+                        .disable_web_page_preview(true)
+                        .send()
+                }
                 Err(Error(ErrorKind::NotSubscribed, _)) => {
                     bot.message(chat_id, "未订阅过的 RSS".to_string())
                         .send()
@@ -440,16 +453,18 @@ fn register_unsubthis(bot: &telebot::RcBot, db: Database) {
         })
         .and_then(|(bot, db, chat_id, feed_link)| {
             match db.unsubscribe(chat_id, &feed_link) {
-                Ok(feed) => bot.message(
-                    chat_id,
-                    format!(
-                        "「<a href=\"{}\">{}</a>」退订成功",
-                        EscapeUrl(&feed.link),
-                        Escape(&feed.title)
-                    ),
-                ).parse_mode("HTML")
-                    .disable_web_page_preview(true)
-                    .send(),
+                Ok(feed) => {
+                    bot.message(
+                        chat_id,
+                        format!(
+                            "「<a href=\"{}\">{}</a>」退订成功",
+                            EscapeUrl(&feed.link),
+                            Escape(&feed.title)
+                        ),
+                    ).parse_mode("HTML")
+                        .disable_web_page_preview(true)
+                        .send()
+                }
                 Err(e) => {
                     log_error(&e);
                     bot.message(chat_id, format!("error: {}", e)).send()
@@ -475,19 +490,15 @@ fn check_channel<'a>(
 ) -> impl Future<Item = Option<i64>, Error = telebot::Error> + 'a {
     let channel = channel
         .parse::<i64>()
-        .map(|_| {
-            if !channel.starts_with("-100") {
-                format!("-100{}", channel)
-            } else {
-                channel.to_owned()
-            }
+        .map(|_| if !channel.starts_with("-100") {
+            format!("-100{}", channel)
+        } else {
+            channel.to_owned()
         })
-        .unwrap_or_else(|_| {
-            if !channel.starts_with('@') {
-                format!("@{}", channel)
-            } else {
-                channel.to_owned()
-            }
+        .unwrap_or_else(|_| if !channel.starts_with('@') {
+            format!("@{}", channel)
+        } else {
+            channel.to_owned()
         });
     let bot = bot.clone();
     async_block! {
