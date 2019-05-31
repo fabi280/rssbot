@@ -99,8 +99,7 @@ fn fetch_feed_updates(
                 let err_msg = to_chinese_error_msg(e);
                 let msg = format!(
                     "「<a href=\"{}\">{}</a>」\
-                     已经连续 5 天拉取出错 ({}),\
-                     可能已经关闭, 请取消订阅",
+                     Failed to fetch {} for 5 days, please consider unsubscribing",
                     EscapeUrl(&feed.link),
                     Escape(&feed.title),
                     Escape(&err_msg)
@@ -170,7 +169,7 @@ fn fetch_feed_updates(
                 {
                     let _ = db.subscribe(subscriber, &rss_link, &rss, Off);
                     vec!(format!(
-                        "<b>错误</b>：Link Preview 设置异常（{}），已被停用",
+                        "<b>Error</b>: Link Previews for {} have been disabled",
                         Escape(&rss_title)
                     ))
                 },

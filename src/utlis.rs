@@ -133,13 +133,13 @@ where
 pub fn to_chinese_error_msg(e: errors::Error) -> String {
     match e {
         errors::Error(errors::ErrorKind::Curl(e), _) => {
-            format!("网络错误 ({})", e.into_error())
+            format!("Network Error ({})", e.into_error())
         }
         errors::Error(errors::ErrorKind::Utf8(e), _) => format!("编码错误 ({})", e),
         errors::Error(errors::ErrorKind::Xml(e), _) => {
             let s = e.to_string();
             let msg = truncate_message(&s, 500);
-            format!("解析错误 ({})", msg)
+            format!("Parsing error ({})", msg)
         }
         _ => format!("{}", e),
     }
