@@ -1,32 +1,24 @@
 [package]
 name = "rssbot"
-version = "1.4.4"
+version = "1.4.5"
 authors = ["iovxw <iovxw@outlook.com>"]
 license = "Unlicense"
 readme = "README.md"
-homepage = "https://github.com/iovxw/rssbot"
-repository = "https://github.com/iovxw/rssbot"
+homepage = "https://github.com/fabi280/rssbot"
+repository = "https://github.com/fabi280/rssbot"
 publish = false
 
 [workspace]
 
 [dependencies]
-log = "0.3"
-env_logger = "0.4"
-lazy_static = "0.2"
-regex = "0.2"
-pinyin-order = "0.1"
-futures-await = "0.1"
-quick-xml = "0.9"
-error-chain = "0.10"
-chrono = "0.4"
+log = "0.4.6"
+env_logger = "0.6.1"
+lazy_static = "1.3.0"
+regex = "1.1.6"
+pinyin-order = "0.1.1"
+futures-await = "0.1.1"
+quick-xml = "0.14.0"
+error-chain = "0.12.1"
+chrono = "0.4.6"
 
-telebot = { path = "./telebot" }
-# version specified by telebot
-serde = "*"
-serde_derive = "*"
-serde_json = "*"
-curl = "*"
-futures = "*"
-tokio-core = "*"
-tokio-curl = "*"
+telebot = "0.2.10"
