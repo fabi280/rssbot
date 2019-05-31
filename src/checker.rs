@@ -6,7 +6,7 @@ use telebot::functions::*;
 use tokio_core::reactor::{Handle, Interval};
 
 use data;
-use utlis::chat_is_unavailable;
+use utils::chat_is_unavailable;
 
 pub fn spawn_subscriber_alive_checker(bot: telebot::RcBot, db: data::Database, handle: Handle) {
     let handle2 = handle.clone();

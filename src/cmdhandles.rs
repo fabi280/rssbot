@@ -11,7 +11,7 @@ use data::{Database, LinkPreview, SubscriptionResult};
 use errors::*;
 use feed;
 use opml::to_opml;
-use utlis::{format_and_split_msgs, gen_ua, log_error, send_multiple_messages,
+use utils::{format_and_split_msgs, gen_ua, log_error, send_multiple_messages,
             to_chinese_error_msg, Escape, EscapeUrl};
 
 pub fn register_commands(bot: &telebot::RcBot, db: &Database, lphandle: Handle) {

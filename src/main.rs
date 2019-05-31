@@ -32,7 +32,7 @@ mod errors;
 mod feed;
 mod fetcher;
 mod opml;
-mod utlis;
+mod utils;
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();

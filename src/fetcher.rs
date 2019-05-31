@@ -12,7 +12,7 @@ use tokio_curl::Session;
 use data;
 use data::LinkPreview;
 use feed;
-use utlis::{
+use utils::{
     chat_is_unavailable, construct_iv_url, format_and_split_msgs, format_msgs, gen_ua,
     send_multiple_messages, to_chinese_error_msg, truncate_message, Escape, EscapeUrl,
     TELEGRAM_MAX_MSG_LEN,
