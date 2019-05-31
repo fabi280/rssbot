@@ -18,7 +18,6 @@ extern crate tokio_curl;
 #[macro_use]
 extern crate lazy_static;
 extern crate chrono;
-extern crate pinyin_order;
 extern crate regex;
 extern crate url;
 

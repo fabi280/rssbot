@@ -1,6 +1,5 @@
 use futures::future;
 use futures::prelude::*;
-use pinyin_order;
 use telebot;
 use telebot::functions::File;
 use telebot::functions::*;
@@ -94,7 +93,7 @@ fn register_rss(bot: &telebot::RcBot, db: Database) {
         .and_then(|(bot, raw, chat_id, mut feeds)| {
             let text = String::from("Subscription list:");
             if !raw {
-                feeds.sort_by_key(|feed| pinyin_order::as_pinyin(&feed.title));
+                feeds.sort_by_key(|feed| &feed.title);
                 let msgs = format_and_split_msgs(text, &feeds, |feed| {
                     format!(
                         "<a href=\"{}\">{}</a>",
