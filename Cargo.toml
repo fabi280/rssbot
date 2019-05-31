@@ -9,8 +9,10 @@ repository = "https://github.com/fabi280/rssbot"
 publish = false
 
 [workspace]
+cargo-features = ["rename-dependency"]
 
 [dependencies]
+rustc-demangle = "0.1.15"
 url = "1.7.2"
 log = "0.4.6"
 env_logger = "0.6.1"
@@ -21,5 +23,4 @@ futures-await = "0.1.1"
 quick-xml = "0.14.0"
 error-chain = "0.12.1"
 chrono = "0.4.6"
-
 telebot = "0.2.10"
